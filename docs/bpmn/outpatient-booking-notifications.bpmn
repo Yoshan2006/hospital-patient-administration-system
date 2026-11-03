@@ -1,0 +1,725 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_OutpatientBooking" targetNamespace="https://hpas.example.org/bpmn">
+  <bpmn:collaboration id="Collaboration_OutpatientBooking">
+    <bpmn:participant id="Participant_OutpatientBooking" name="HPAS | Outpatient booking and patient notifications" processRef="Process_OutpatientBooking"/>
+    <bpmn:participant id="Participant_Scheduling" name="External scheduling service"/>
+    <bpmn:participant id="Participant_Mail" name="External correspondence service"/>
+    <bpmn:participant id="Participant_Patient" name="Patient (external)"/>
+    <bpmn:messageFlow id="Message_01" sourceRef="Task_SearchSlots" targetRef="Participant_Scheduling" name="Search request"/>
+    <bpmn:messageFlow id="Message_02" sourceRef="Participant_Scheduling" targetRef="Task_SearchSlots" name="Availability response"/>
+    <bpmn:messageFlow id="Message_03" sourceRef="Task_CreateBooking" targetRef="Participant_Scheduling" name="Booking intent (idempotent)"/>
+    <bpmn:messageFlow id="Message_04" sourceRef="Participant_Scheduling" targetRef="Task_CreateBooking" name="Booking status"/>
+    <bpmn:messageFlow id="Message_05" sourceRef="Task_Reconcile" targetRef="Participant_Scheduling" name="Lookup by correlation ID"/>
+    <bpmn:messageFlow id="Message_06" sourceRef="Participant_Scheduling" targetRef="Task_Reconcile" name="Reconciliation status"/>
+    <bpmn:messageFlow id="Message_07" sourceRef="Task_QueueLetter" targetRef="Participant_Mail" name="Dispatch request"/>
+    <bpmn:messageFlow id="Message_08" sourceRef="Participant_Mail" targetRef="Task_QueueLetter" name="Delivery/queue status"/>
+    <bpmn:messageFlow id="Message_09" sourceRef="Task_TelephonePatient" targetRef="Participant_Patient" name="Telephone call"/>
+    <bpmn:messageFlow id="Message_10" sourceRef="Participant_Patient" targetRef="Task_LogAttempt" name="Patient answer/availability"/>
+  </bpmn:collaboration>
+  <bpmn:process id="Process_OutpatientBooking" name="Outpatient booking and patient notifications" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_OutpatientBooking">
+      <bpmn:lane id="Lane_Bookings" name="Outpatient Bookings Team">
+        <bpmn:flowNodeRef>Start_BookingRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReceiveRequest</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckConstraints</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PendingAPI</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_APIPending</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SelectSlot</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_TelephonePatient</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LogAttempt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ContactFollowup</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_FollowupRequired</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RequestChange</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_ChangeRequested</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Automation" name="HPAS — automated rules / integration">
+        <bpmn:flowNodeRef>Gateway_RequestType</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckNewReferral</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ReferralAccepted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CheckFollowUp</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_FollowUpApproved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RejectUnauthorised</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ApprovedMerge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_IsUrgent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_PriorityMerge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_SearchSlots</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_APIAvailable</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SlotWithinWindow</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateBooking</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Confirmed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Reconcile</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ReconcileConfirmed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_StoreConfirmation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_QueueLetter</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Within14Days</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_LetterOnly</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateCallTask</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_CallOutcome</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_LogReached</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Contacted</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Pathway" name="Patient Pathway Coordinators">
+        <bpmn:flowNodeRef>Task_Expedite</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NoSlotEscalation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_NoSlot</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ManualReconciliation</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Reconciliation</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Start_BookingRequest" name="Booking request received">
+      <bpmn:outgoing>Flow_001</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_ReceiveRequest" name="Record booking request">
+      <bpmn:incoming>Flow_001</bpmn:incoming>
+      <bpmn:outgoing>Flow_002</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_RequestType" name="New patient or follow-up?">
+      <bpmn:incoming>Flow_002</bpmn:incoming>
+      <bpmn:outgoing>Flow_003</bpmn:outgoing>
+      <bpmn:outgoing>Flow_004</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_CheckNewReferral" name="Verify accepted Consultant referral">
+      <bpmn:incoming>Flow_003</bpmn:incoming>
+      <bpmn:outgoing>Flow_005</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_ReferralAccepted" name="Accepted?">
+      <bpmn:incoming>Flow_005</bpmn:incoming>
+      <bpmn:outgoing>Flow_007</bpmn:outgoing>
+      <bpmn:outgoing>Flow_008</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_CheckFollowUp" name="Verify authorised follow-up order">
+      <bpmn:incoming>Flow_004</bpmn:incoming>
+      <bpmn:outgoing>Flow_006</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_FollowUpApproved" name="Authorised?">
+      <bpmn:incoming>Flow_006</bpmn:incoming>
+      <bpmn:outgoing>Flow_009</bpmn:outgoing>
+      <bpmn:outgoing>Flow_010</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_RejectUnauthorised" name="Reject booking; audit denial">
+      <bpmn:incoming>Flow_008</bpmn:incoming>
+      <bpmn:incoming>Flow_010</bpmn:incoming>
+      <bpmn:outgoing>Flow_011</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_Rejected" name="Rejected — no booking">
+      <bpmn:incoming>Flow_011</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="Gateway_ApprovedMerge" name="Approved request">
+      <bpmn:incoming>Flow_007</bpmn:incoming>
+      <bpmn:incoming>Flow_009</bpmn:incoming>
+      <bpmn:outgoing>Flow_012</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_CheckConstraints" name="Review priority, specialty and timeframe">
+      <bpmn:incoming>Flow_012</bpmn:incoming>
+      <bpmn:outgoing>Flow_013</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_IsUrgent" name="Urgent priority?">
+      <bpmn:incoming>Flow_013</bpmn:incoming>
+      <bpmn:outgoing>Flow_014</bpmn:outgoing>
+      <bpmn:outgoing>Flow_015</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Expedite" name="Alert urgent pathway handling">
+      <bpmn:incoming>Flow_014</bpmn:incoming>
+      <bpmn:outgoing>Flow_016</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_PriorityMerge" name="Priority checked">
+      <bpmn:incoming>Flow_015</bpmn:incoming>
+      <bpmn:incoming>Flow_016</bpmn:incoming>
+      <bpmn:outgoing>Flow_017</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_SearchSlots" name="Query external scheduling API">
+      <bpmn:incoming>Flow_017</bpmn:incoming>
+      <bpmn:outgoing>Flow_018</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_APIAvailable" name="API response usable?">
+      <bpmn:incoming>Flow_018</bpmn:incoming>
+      <bpmn:outgoing>Flow_019</bpmn:outgoing>
+      <bpmn:outgoing>Flow_020</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_PendingAPI" name="Record outage; notify booking team">
+      <bpmn:incoming>Flow_020</bpmn:incoming>
+      <bpmn:outgoing>Flow_021</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_APIPending" name="Pending service recovery">
+      <bpmn:incoming>Flow_021</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="Gateway_SlotWithinWindow" name="Slot within clinical deadline?">
+      <bpmn:incoming>Flow_019</bpmn:incoming>
+      <bpmn:outgoing>Flow_022</bpmn:outgoing>
+      <bpmn:outgoing>Flow_023</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_NoSlotEscalation" name="Escalate missing slot to Pathway Team">
+      <bpmn:incoming>Flow_023</bpmn:incoming>
+      <bpmn:outgoing>Flow_024</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_NoSlot" name="Await clinical/pathway resolution">
+      <bpmn:incoming>Flow_024</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Task_SelectSlot" name="Select clinically valid slot">
+      <bpmn:incoming>Flow_022</bpmn:incoming>
+      <bpmn:outgoing>Flow_025</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Task_CreateBooking" name="Request booking with idempotency key">
+      <bpmn:incoming>Flow_025</bpmn:incoming>
+      <bpmn:outgoing>Flow_026</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_Confirmed" name="Provider confirmed?">
+      <bpmn:incoming>Flow_026</bpmn:incoming>
+      <bpmn:outgoing>Flow_027</bpmn:outgoing>
+      <bpmn:outgoing>Flow_028</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_Reconcile" name="Reconcile provider by correlation ID">
+      <bpmn:incoming>Flow_028</bpmn:incoming>
+      <bpmn:outgoing>Flow_029</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_ReconcileConfirmed" name="Existing booking found?">
+      <bpmn:incoming>Flow_029</bpmn:incoming>
+      <bpmn:outgoing>Flow_030</bpmn:outgoing>
+      <bpmn:outgoing>Flow_031</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_ManualReconciliation" name="Flag unknown booking; investigate">
+      <bpmn:incoming>Flow_031</bpmn:incoming>
+      <bpmn:outgoing>Flow_032</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_Reconciliation" name="Pending reconciliation">
+      <bpmn:incoming>Flow_032</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Task_StoreConfirmation" name="Save appointment; audit confirmation">
+      <bpmn:incoming>Flow_027</bpmn:incoming>
+      <bpmn:incoming>Flow_030</bpmn:incoming>
+      <bpmn:outgoing>Flow_033</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_QueueLetter" name="Queue routine appointment letter">
+      <bpmn:incoming>Flow_033</bpmn:incoming>
+      <bpmn:outgoing>Flow_034</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_Within14Days" name="Within 14 days?">
+      <bpmn:incoming>Flow_034</bpmn:incoming>
+      <bpmn:outgoing>Flow_035</bpmn:outgoing>
+      <bpmn:outgoing>Flow_036</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_LetterOnly" name="Booked; letter queued">
+      <bpmn:incoming>Flow_035</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Task_CreateCallTask" name="Generate phone contact task">
+      <bpmn:incoming>Flow_036</bpmn:incoming>
+      <bpmn:outgoing>Flow_037</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="Task_TelephonePatient" name="Telephone patient">
+      <bpmn:incoming>Flow_037</bpmn:incoming>
+      <bpmn:outgoing>Flow_038</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_LogAttempt" name="Log attempt and response">
+      <bpmn:incoming>Flow_038</bpmn:incoming>
+      <bpmn:outgoing>Flow_039</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_CallOutcome" name="Call outcome?">
+      <bpmn:incoming>Flow_039</bpmn:incoming>
+      <bpmn:outgoing>Flow_040</bpmn:outgoing>
+      <bpmn:outgoing>Flow_041</bpmn:outgoing>
+      <bpmn:outgoing>Flow_042</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_LogReached" name="Record patient contacted">
+      <bpmn:incoming>Flow_040</bpmn:incoming>
+      <bpmn:outgoing>Flow_043</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_Contacted" name="Booked and patient contacted">
+      <bpmn:incoming>Flow_043</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Task_ContactFollowup" name="Create retry / verify contact task">
+      <bpmn:incoming>Flow_041</bpmn:incoming>
+      <bpmn:outgoing>Flow_044</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_FollowupRequired" name="Contact follow-up pending">
+      <bpmn:incoming>Flow_044</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Task_RequestChange" name="Log requested change; open review">
+      <bpmn:incoming>Flow_042</bpmn:incoming>
+      <bpmn:outgoing>Flow_045</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_ChangeRequested" name="Rescheduling review pending">
+      <bpmn:incoming>Flow_045</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_001" sourceRef="Start_BookingRequest" targetRef="Task_ReceiveRequest"/>
+    <bpmn:sequenceFlow id="Flow_002" sourceRef="Task_ReceiveRequest" targetRef="Gateway_RequestType"/>
+    <bpmn:sequenceFlow id="Flow_003" sourceRef="Gateway_RequestType" targetRef="Task_CheckNewReferral" name="New patient"/>
+    <bpmn:sequenceFlow id="Flow_004" sourceRef="Gateway_RequestType" targetRef="Task_CheckFollowUp" name="Follow-up"/>
+    <bpmn:sequenceFlow id="Flow_005" sourceRef="Task_CheckNewReferral" targetRef="Gateway_ReferralAccepted"/>
+    <bpmn:sequenceFlow id="Flow_006" sourceRef="Task_CheckFollowUp" targetRef="Gateway_FollowUpApproved"/>
+    <bpmn:sequenceFlow id="Flow_007" sourceRef="Gateway_ReferralAccepted" targetRef="Gateway_ApprovedMerge" name="Yes"/>
+    <bpmn:sequenceFlow id="Flow_008" sourceRef="Gateway_ReferralAccepted" targetRef="Task_RejectUnauthorised" name="No"/>
+    <bpmn:sequenceFlow id="Flow_009" sourceRef="Gateway_FollowUpApproved" targetRef="Gateway_ApprovedMerge" name="Yes"/>
+    <bpmn:sequenceFlow id="Flow_010" sourceRef="Gateway_FollowUpApproved" targetRef="Task_RejectUnauthorised" name="No"/>
+    <bpmn:sequenceFlow id="Flow_011" sourceRef="Task_RejectUnauthorised" targetRef="End_Rejected"/>
+    <bpmn:sequenceFlow id="Flow_012" sourceRef="Gateway_ApprovedMerge" targetRef="Task_CheckConstraints"/>
+    <bpmn:sequenceFlow id="Flow_013" sourceRef="Task_CheckConstraints" targetRef="Gateway_IsUrgent"/>
+    <bpmn:sequenceFlow id="Flow_014" sourceRef="Gateway_IsUrgent" targetRef="Task_Expedite" name="Yes"/>
+    <bpmn:sequenceFlow id="Flow_015" sourceRef="Gateway_IsUrgent" targetRef="Gateway_PriorityMerge" name="No"/>
+    <bpmn:sequenceFlow id="Flow_016" sourceRef="Task_Expedite" targetRef="Gateway_PriorityMerge"/>
+    <bpmn:sequenceFlow id="Flow_017" sourceRef="Gateway_PriorityMerge" targetRef="Task_SearchSlots"/>
+    <bpmn:sequenceFlow id="Flow_018" sourceRef="Task_SearchSlots" targetRef="Gateway_APIAvailable"/>
+    <bpmn:sequenceFlow id="Flow_019" sourceRef="Gateway_APIAvailable" targetRef="Gateway_SlotWithinWindow" name="Yes"/>
+    <bpmn:sequenceFlow id="Flow_020" sourceRef="Gateway_APIAvailable" targetRef="Task_PendingAPI" name="No / timeout"/>
+    <bpmn:sequenceFlow id="Flow_021" sourceRef="Task_PendingAPI" targetRef="End_APIPending"/>
+    <bpmn:sequenceFlow id="Flow_022" sourceRef="Gateway_SlotWithinWindow" targetRef="Task_SelectSlot" name="Yes"/>
+    <bpmn:sequenceFlow id="Flow_023" sourceRef="Gateway_SlotWithinWindow" targetRef="Task_NoSlotEscalation" name="No"/>
+    <bpmn:sequenceFlow id="Flow_024" sourceRef="Task_NoSlotEscalation" targetRef="End_NoSlot"/>
+    <bpmn:sequenceFlow id="Flow_025" sourceRef="Task_SelectSlot" targetRef="Task_CreateBooking"/>
+    <bpmn:sequenceFlow id="Flow_026" sourceRef="Task_CreateBooking" targetRef="Gateway_Confirmed"/>
+    <bpmn:sequenceFlow id="Flow_027" sourceRef="Gateway_Confirmed" targetRef="Task_StoreConfirmation" name="Confirmed"/>
+    <bpmn:sequenceFlow id="Flow_028" sourceRef="Gateway_Confirmed" targetRef="Task_Reconcile" name="Unknown / timeout"/>
+    <bpmn:sequenceFlow id="Flow_029" sourceRef="Task_Reconcile" targetRef="Gateway_ReconcileConfirmed"/>
+    <bpmn:sequenceFlow id="Flow_030" sourceRef="Gateway_ReconcileConfirmed" targetRef="Task_StoreConfirmation" name="Found"/>
+    <bpmn:sequenceFlow id="Flow_031" sourceRef="Gateway_ReconcileConfirmed" targetRef="Task_ManualReconciliation" name="Not confirmed / unknown"/>
+    <bpmn:sequenceFlow id="Flow_032" sourceRef="Task_ManualReconciliation" targetRef="End_Reconciliation"/>
+    <bpmn:sequenceFlow id="Flow_033" sourceRef="Task_StoreConfirmation" targetRef="Task_QueueLetter"/>
+    <bpmn:sequenceFlow id="Flow_034" sourceRef="Task_QueueLetter" targetRef="Gateway_Within14Days"/>
+    <bpmn:sequenceFlow id="Flow_035" sourceRef="Gateway_Within14Days" targetRef="End_LetterOnly" name="No"/>
+    <bpmn:sequenceFlow id="Flow_036" sourceRef="Gateway_Within14Days" targetRef="Task_CreateCallTask" name="Yes"/>
+    <bpmn:sequenceFlow id="Flow_037" sourceRef="Task_CreateCallTask" targetRef="Task_TelephonePatient"/>
+    <bpmn:sequenceFlow id="Flow_038" sourceRef="Task_TelephonePatient" targetRef="Task_LogAttempt"/>
+    <bpmn:sequenceFlow id="Flow_039" sourceRef="Task_LogAttempt" targetRef="Gateway_CallOutcome"/>
+    <bpmn:sequenceFlow id="Flow_040" sourceRef="Gateway_CallOutcome" targetRef="Task_LogReached" name="Reached"/>
+    <bpmn:sequenceFlow id="Flow_041" sourceRef="Gateway_CallOutcome" targetRef="Task_ContactFollowup" name="No answer / incorrect number"/>
+    <bpmn:sequenceFlow id="Flow_042" sourceRef="Gateway_CallOutcome" targetRef="Task_RequestChange" name="Requests different time"/>
+    <bpmn:sequenceFlow id="Flow_043" sourceRef="Task_LogReached" targetRef="End_Contacted"/>
+    <bpmn:sequenceFlow id="Flow_044" sourceRef="Task_ContactFollowup" targetRef="End_FollowupRequired"/>
+    <bpmn:sequenceFlow id="Flow_045" sourceRef="Task_RequestChange" targetRef="End_ChangeRequested"/>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_OutpatientBooking">
+    <bpmndi:BPMNPlane id="BPMNPlane_OutpatientBooking" bpmnElement="Collaboration_OutpatientBooking">
+      <bpmndi:BPMNShape id="Participant_OutpatientBooking_di" bpmnElement="Participant_OutpatientBooking" isHorizontal="true">
+        <dc:Bounds x="65" y="45" width="4926" height="720"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Bookings_di" bpmnElement="Lane_Bookings" isHorizontal="true">
+        <dc:Bounds x="95" y="60" width="4896" height="240"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Automation_di" bpmnElement="Lane_Automation" isHorizontal="true">
+        <dc:Bounds x="95" y="300" width="4896" height="260"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Pathway_di" bpmnElement="Lane_Pathway" isHorizontal="true">
+        <dc:Bounds x="95" y="560" width="4896" height="205"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Participant_Scheduling_di" bpmnElement="Participant_Scheduling" isHorizontal="true">
+        <dc:Bounds x="65" y="800" width="4926" height="110"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Participant_Mail_di" bpmnElement="Participant_Mail" isHorizontal="true">
+        <dc:Bounds x="65" y="945" width="4926" height="110"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Participant_Patient_di" bpmnElement="Participant_Patient" isHorizontal="true">
+        <dc:Bounds x="65" y="1090" width="4926" height="110"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_BookingRequest_di" bpmnElement="Start_BookingRequest">
+        <dc:Bounds x="130" y="160" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ReceiveRequest_di" bpmnElement="Task_ReceiveRequest">
+        <dc:Bounds x="235" y="145" width="148" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_RequestType_di" bpmnElement="Gateway_RequestType" isMarkerVisible="true">
+        <dc:Bounds x="435" y="374" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CheckNewReferral_di" bpmnElement="Task_CheckNewReferral">
+        <dc:Bounds x="535" y="340" width="148" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ReferralAccepted_di" bpmnElement="Gateway_ReferralAccepted" isMarkerVisible="true">
+        <dc:Bounds x="735" y="350" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CheckFollowUp_di" bpmnElement="Task_CheckFollowUp">
+        <dc:Bounds x="535" y="465" width="148" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_FollowUpApproved_di" bpmnElement="Gateway_FollowUpApproved" isMarkerVisible="true">
+        <dc:Bounds x="735" y="467" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RejectUnauthorised_di" bpmnElement="Task_RejectUnauthorised">
+        <dc:Bounds x="850" y="474" width="148" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Rejected_di" bpmnElement="End_Rejected">
+        <dc:Bounds x="1035" y="488" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ApprovedMerge_di" bpmnElement="Gateway_ApprovedMerge" isMarkerVisible="true">
+        <dc:Bounds x="1020" y="355" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CheckConstraints_di" bpmnElement="Task_CheckConstraints">
+        <dc:Bounds x="1135" y="140" width="168" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_IsUrgent_di" bpmnElement="Gateway_IsUrgent" isMarkerVisible="true">
+        <dc:Bounds x="1350" y="370" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Expedite_di" bpmnElement="Task_Expedite">
+        <dc:Bounds x="1480" y="625" width="148" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_PriorityMerge_di" bpmnElement="Gateway_PriorityMerge" isMarkerVisible="true">
+        <dc:Bounds x="1670" y="370" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SearchSlots_di" bpmnElement="Task_SearchSlots">
+        <dc:Bounds x="1790" y="352" width="148" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_APIAvailable_di" bpmnElement="Gateway_APIAvailable" isMarkerVisible="true">
+        <dc:Bounds x="1985" y="370" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_PendingAPI_di" bpmnElement="Task_PendingAPI">
+        <dc:Bounds x="2070" y="145" width="148" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_APIPending_di" bpmnElement="End_APIPending">
+        <dc:Bounds x="2275" y="160" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_SlotWithinWindow_di" bpmnElement="Gateway_SlotWithinWindow" isMarkerVisible="true">
+        <dc:Bounds x="2150" y="370" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NoSlotEscalation_di" bpmnElement="Task_NoSlotEscalation">
+        <dc:Bounds x="2290" y="625" width="167" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_NoSlot_di" bpmnElement="End_NoSlot">
+        <dc:Bounds x="2500" y="640" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SelectSlot_di" bpmnElement="Task_SelectSlot">
+        <dc:Bounds x="2300" y="145" width="148" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CreateBooking_di" bpmnElement="Task_CreateBooking">
+        <dc:Bounds x="2510" y="352" width="175" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Confirmed_di" bpmnElement="Gateway_Confirmed" isMarkerVisible="true">
+        <dc:Bounds x="2720" y="370" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Reconcile_di" bpmnElement="Task_Reconcile">
+        <dc:Bounds x="2835" y="460" width="178" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ReconcileConfirmed_di" bpmnElement="Gateway_ReconcileConfirmed" isMarkerVisible="true">
+        <dc:Bounds x="3060" y="466" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ManualReconciliation_di" bpmnElement="Task_ManualReconciliation">
+        <dc:Bounds x="3250" y="625" width="148" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Reconciliation_di" bpmnElement="End_Reconciliation">
+        <dc:Bounds x="3450" y="640" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_StoreConfirmation_di" bpmnElement="Task_StoreConfirmation">
+        <dc:Bounds x="3240" y="352" width="176" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_QueueLetter_di" bpmnElement="Task_QueueLetter">
+        <dc:Bounds x="3460" y="352" width="148" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Within14Days_di" bpmnElement="Gateway_Within14Days" isMarkerVisible="true">
+        <dc:Bounds x="3650" y="370" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_LetterOnly_di" bpmnElement="End_LetterOnly">
+        <dc:Bounds x="3820" y="377" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CreateCallTask_di" bpmnElement="Task_CreateCallTask">
+        <dc:Bounds x="3770" y="465" width="148" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TelephonePatient_di" bpmnElement="Task_TelephonePatient">
+        <dc:Bounds x="3990" y="140" width="148" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LogAttempt_di" bpmnElement="Task_LogAttempt">
+        <dc:Bounds x="4175" y="140" width="148" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_CallOutcome_di" bpmnElement="Gateway_CallOutcome" isMarkerVisible="true">
+        <dc:Bounds x="4380" y="370" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LogReached_di" bpmnElement="Task_LogReached">
+        <dc:Bounds x="4520" y="340" width="148" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Contacted_di" bpmnElement="End_Contacted">
+        <dc:Bounds x="4710" y="356" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ContactFollowup_di" bpmnElement="Task_ContactFollowup">
+        <dc:Bounds x="4515" y="75" width="174" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_FollowupRequired_di" bpmnElement="End_FollowupRequired">
+        <dc:Bounds x="4730" y="95" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RequestChange_di" bpmnElement="Task_RequestChange">
+        <dc:Bounds x="4515" y="210" width="174" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_ChangeRequested_di" bpmnElement="End_ChangeRequested">
+        <dc:Bounds x="4730" y="232" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_001_di" bpmnElement="Flow_001">
+        <di:waypoint x="166" y="178.0"/>
+        <di:waypoint x="235" y="180.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_002_di" bpmnElement="Flow_002">
+        <di:waypoint x="383" y="180.0"/>
+        <di:waypoint x="409.0" y="180.0"/>
+        <di:waypoint x="409.0" y="399.0"/>
+        <di:waypoint x="435" y="399.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_003_di" bpmnElement="Flow_003">
+        <di:waypoint x="485" y="399.0"/>
+        <di:waypoint x="510.0" y="399.0"/>
+        <di:waypoint x="510.0" y="375.0"/>
+        <di:waypoint x="535" y="375.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_004_di" bpmnElement="Flow_004">
+        <di:waypoint x="485" y="399.0"/>
+        <di:waypoint x="510.0" y="399.0"/>
+        <di:waypoint x="510.0" y="500.0"/>
+        <di:waypoint x="535" y="500.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_005_di" bpmnElement="Flow_005">
+        <di:waypoint x="683" y="375.0"/>
+        <di:waypoint x="735" y="375.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_006_di" bpmnElement="Flow_006">
+        <di:waypoint x="683" y="500.0"/>
+        <di:waypoint x="709.0" y="500.0"/>
+        <di:waypoint x="709.0" y="492.0"/>
+        <di:waypoint x="735" y="492.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_007_di" bpmnElement="Flow_007">
+        <di:waypoint x="785" y="375.0"/>
+        <di:waypoint x="902.5" y="375.0"/>
+        <di:waypoint x="902.5" y="380.0"/>
+        <di:waypoint x="1020" y="380.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_008_di" bpmnElement="Flow_008">
+        <di:waypoint x="785" y="375.0"/>
+        <di:waypoint x="817.5" y="375.0"/>
+        <di:waypoint x="817.5" y="509.0"/>
+        <di:waypoint x="850" y="509.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_009_di" bpmnElement="Flow_009">
+        <di:waypoint x="785" y="492.0"/>
+        <di:waypoint x="902.5" y="492.0"/>
+        <di:waypoint x="902.5" y="380.0"/>
+        <di:waypoint x="1020" y="380.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_010_di" bpmnElement="Flow_010">
+        <di:waypoint x="785" y="492.0"/>
+        <di:waypoint x="817.5" y="492.0"/>
+        <di:waypoint x="817.5" y="509.0"/>
+        <di:waypoint x="850" y="509.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_011_di" bpmnElement="Flow_011">
+        <di:waypoint x="998" y="509.0"/>
+        <di:waypoint x="1035" y="506.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_012_di" bpmnElement="Flow_012">
+        <di:waypoint x="1070" y="380.0"/>
+        <di:waypoint x="1102.5" y="380.0"/>
+        <di:waypoint x="1102.5" y="175.0"/>
+        <di:waypoint x="1135" y="175.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_013_di" bpmnElement="Flow_013">
+        <di:waypoint x="1303" y="175.0"/>
+        <di:waypoint x="1326.5" y="175.0"/>
+        <di:waypoint x="1326.5" y="395.0"/>
+        <di:waypoint x="1350" y="395.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_014_di" bpmnElement="Flow_014">
+        <di:waypoint x="1400" y="395.0"/>
+        <di:waypoint x="1440.0" y="395.0"/>
+        <di:waypoint x="1440.0" y="660.0"/>
+        <di:waypoint x="1480" y="660.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_015_di" bpmnElement="Flow_015">
+        <di:waypoint x="1400" y="395.0"/>
+        <di:waypoint x="1670" y="395.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_016_di" bpmnElement="Flow_016">
+        <di:waypoint x="1628" y="660.0"/>
+        <di:waypoint x="1649.0" y="660.0"/>
+        <di:waypoint x="1649.0" y="395.0"/>
+        <di:waypoint x="1670" y="395.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_017_di" bpmnElement="Flow_017">
+        <di:waypoint x="1720" y="395.0"/>
+        <di:waypoint x="1755.0" y="395.0"/>
+        <di:waypoint x="1755.0" y="387.0"/>
+        <di:waypoint x="1790" y="387.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_018_di" bpmnElement="Flow_018">
+        <di:waypoint x="1938" y="387.0"/>
+        <di:waypoint x="1961.5" y="387.0"/>
+        <di:waypoint x="1961.5" y="395.0"/>
+        <di:waypoint x="1985" y="395.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_019_di" bpmnElement="Flow_019">
+        <di:waypoint x="2035" y="395.0"/>
+        <di:waypoint x="2150" y="395.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_020_di" bpmnElement="Flow_020">
+        <di:waypoint x="2035" y="395.0"/>
+        <di:waypoint x="2052.5" y="395.0"/>
+        <di:waypoint x="2052.5" y="180.0"/>
+        <di:waypoint x="2070" y="180.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_021_di" bpmnElement="Flow_021">
+        <di:waypoint x="2218" y="180.0"/>
+        <di:waypoint x="2275" y="178.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_022_di" bpmnElement="Flow_022">
+        <di:waypoint x="2200" y="395.0"/>
+        <di:waypoint x="2250.0" y="395.0"/>
+        <di:waypoint x="2250.0" y="180.0"/>
+        <di:waypoint x="2300" y="180.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_023_di" bpmnElement="Flow_023">
+        <di:waypoint x="2200" y="395.0"/>
+        <di:waypoint x="2245.0" y="395.0"/>
+        <di:waypoint x="2245.0" y="660.0"/>
+        <di:waypoint x="2290" y="660.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_024_di" bpmnElement="Flow_024">
+        <di:waypoint x="2457" y="660.0"/>
+        <di:waypoint x="2500" y="658.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_025_di" bpmnElement="Flow_025">
+        <di:waypoint x="2448" y="180.0"/>
+        <di:waypoint x="2479.0" y="180.0"/>
+        <di:waypoint x="2479.0" y="387.0"/>
+        <di:waypoint x="2510" y="387.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_026_di" bpmnElement="Flow_026">
+        <di:waypoint x="2685" y="387.0"/>
+        <di:waypoint x="2702.5" y="387.0"/>
+        <di:waypoint x="2702.5" y="395.0"/>
+        <di:waypoint x="2720" y="395.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_027_di" bpmnElement="Flow_027">
+        <di:waypoint x="2770" y="395.0"/>
+        <di:waypoint x="3005.0" y="395.0"/>
+        <di:waypoint x="3005.0" y="387.0"/>
+        <di:waypoint x="3240" y="387.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_028_di" bpmnElement="Flow_028">
+        <di:waypoint x="2770" y="395.0"/>
+        <di:waypoint x="2802.5" y="395.0"/>
+        <di:waypoint x="2802.5" y="495.0"/>
+        <di:waypoint x="2835" y="495.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_029_di" bpmnElement="Flow_029">
+        <di:waypoint x="3013" y="495.0"/>
+        <di:waypoint x="3036.5" y="495.0"/>
+        <di:waypoint x="3036.5" y="491.0"/>
+        <di:waypoint x="3060" y="491.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_030_di" bpmnElement="Flow_030">
+        <di:waypoint x="3110" y="491.0"/>
+        <di:waypoint x="3175.0" y="491.0"/>
+        <di:waypoint x="3175.0" y="387.0"/>
+        <di:waypoint x="3240" y="387.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_031_di" bpmnElement="Flow_031">
+        <di:waypoint x="3110" y="491.0"/>
+        <di:waypoint x="3180.0" y="491.0"/>
+        <di:waypoint x="3180.0" y="660.0"/>
+        <di:waypoint x="3250" y="660.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_032_di" bpmnElement="Flow_032">
+        <di:waypoint x="3398" y="660.0"/>
+        <di:waypoint x="3450" y="658.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_033_di" bpmnElement="Flow_033">
+        <di:waypoint x="3416" y="387.0"/>
+        <di:waypoint x="3460" y="387.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_034_di" bpmnElement="Flow_034">
+        <di:waypoint x="3608" y="387.0"/>
+        <di:waypoint x="3629.0" y="387.0"/>
+        <di:waypoint x="3629.0" y="395.0"/>
+        <di:waypoint x="3650" y="395.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_035_di" bpmnElement="Flow_035">
+        <di:waypoint x="3700" y="395.0"/>
+        <di:waypoint x="3820" y="395.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_036_di" bpmnElement="Flow_036">
+        <di:waypoint x="3700" y="395.0"/>
+        <di:waypoint x="3735.0" y="395.0"/>
+        <di:waypoint x="3735.0" y="500.0"/>
+        <di:waypoint x="3770" y="500.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_037_di" bpmnElement="Flow_037">
+        <di:waypoint x="3918" y="500.0"/>
+        <di:waypoint x="3954.0" y="500.0"/>
+        <di:waypoint x="3954.0" y="175.0"/>
+        <di:waypoint x="3990" y="175.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_038_di" bpmnElement="Flow_038">
+        <di:waypoint x="4138" y="175.0"/>
+        <di:waypoint x="4175" y="175.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_039_di" bpmnElement="Flow_039">
+        <di:waypoint x="4323" y="175.0"/>
+        <di:waypoint x="4351.5" y="175.0"/>
+        <di:waypoint x="4351.5" y="395.0"/>
+        <di:waypoint x="4380" y="395.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_040_di" bpmnElement="Flow_040">
+        <di:waypoint x="4430" y="395.0"/>
+        <di:waypoint x="4475.0" y="395.0"/>
+        <di:waypoint x="4475.0" y="375.0"/>
+        <di:waypoint x="4520" y="375.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_041_di" bpmnElement="Flow_041">
+        <di:waypoint x="4430" y="395.0"/>
+        <di:waypoint x="4472.5" y="395.0"/>
+        <di:waypoint x="4472.5" y="110.0"/>
+        <di:waypoint x="4515" y="110.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_042_di" bpmnElement="Flow_042">
+        <di:waypoint x="4430" y="395.0"/>
+        <di:waypoint x="4472.5" y="395.0"/>
+        <di:waypoint x="4472.5" y="245.0"/>
+        <di:waypoint x="4515" y="245.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_043_di" bpmnElement="Flow_043">
+        <di:waypoint x="4668" y="375.0"/>
+        <di:waypoint x="4710" y="374.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_044_di" bpmnElement="Flow_044">
+        <di:waypoint x="4689" y="110.0"/>
+        <di:waypoint x="4730" y="113.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_045_di" bpmnElement="Flow_045">
+        <di:waypoint x="4689" y="245.0"/>
+        <di:waypoint x="4709.5" y="245.0"/>
+        <di:waypoint x="4709.5" y="250.0"/>
+        <di:waypoint x="4730" y="250.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_01_di" bpmnElement="Message_01">
+        <di:waypoint x="1864.0" y="422"/>
+        <di:waypoint x="1864.0" y="800"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_02_di" bpmnElement="Message_02">
+        <di:waypoint x="1864.0" y="800"/>
+        <di:waypoint x="1864.0" y="422"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_03_di" bpmnElement="Message_03">
+        <di:waypoint x="2597.5" y="422"/>
+        <di:waypoint x="2597.5" y="800"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_04_di" bpmnElement="Message_04">
+        <di:waypoint x="2597.5" y="800"/>
+        <di:waypoint x="2597.5" y="422"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_05_di" bpmnElement="Message_05">
+        <di:waypoint x="2924.0" y="530"/>
+        <di:waypoint x="2924.0" y="800"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_06_di" bpmnElement="Message_06">
+        <di:waypoint x="2924.0" y="800"/>
+        <di:waypoint x="2924.0" y="530"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_07_di" bpmnElement="Message_07">
+        <di:waypoint x="3534.0" y="422"/>
+        <di:waypoint x="3534.0" y="945"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_08_di" bpmnElement="Message_08">
+        <di:waypoint x="3534.0" y="945"/>
+        <di:waypoint x="3534.0" y="422"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_09_di" bpmnElement="Message_09">
+        <di:waypoint x="4064.0" y="210"/>
+        <di:waypoint x="4064.0" y="1090"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_10_di" bpmnElement="Message_10">
+        <di:waypoint x="4249.0" y="1090"/>
+        <di:waypoint x="4249.0" y="210"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

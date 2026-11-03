@@ -1,0 +1,271 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_AppointmentOutcome" targetNamespace="https://hpas.example.org/bpmn">
+  <bpmn:collaboration id="Collaboration_AppointmentOutcome">
+    <bpmn:participant id="Participant_AppointmentOutcome" name="HPAS | Appointment cancellation, declined appointments and DNA" processRef="Process_AppointmentOutcome"/>
+    <bpmn:participant id="Participant_OutcomesPatient" name="Patient / clinical event source"/>
+    <bpmn:participant id="Participant_OutcomesFinance" name="Finance Team — external to booking workflow"/>
+    <bpmn:messageFlow id="Message_01" sourceRef="Participant_OutcomesPatient" targetRef="Task_RecordStatus" name="Patient-reported cancellation/decline"/>
+    <bpmn:messageFlow id="Message_02" sourceRef="Task_NotifyFinance" targetRef="Participant_OutcomesFinance" name="Finance review request"/>
+  </bpmn:collaboration>
+  <bpmn:process id="Process_AppointmentOutcome" name="Appointment cancellation, declined appointments and DNA" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_AppointmentOutcome">
+      <bpmn:lane id="Lane_OutcomesBooking" name="Outpatient Bookings Team">
+        <bpmn:flowNodeRef>Start_StatusEvent</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RecordStatus</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ImplementDisposition</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_OutcomesAutomation" name="HPAS — monitoring and audit">
+        <bpmn:flowNodeRef>Gateway_IsAttended</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Attended</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_CreateClinicalReview</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Paid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_NotifyFinance</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_FinanceReview</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_OutcomeDone</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_OutcomesClinical" name="Authorised Clinical Team">
+        <bpmn:flowNodeRef>Task_ClinicianDecision</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_OfferRebook</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AuthoriseRebook</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_DocumentNoRebook</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ClinicalMerge</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Start_StatusEvent" name="Appointment status received">
+      <bpmn:outgoing>Flow_001</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_RecordStatus" name="Record status, reason, timestamp and actor">
+      <bpmn:incoming>Flow_001</bpmn:incoming>
+      <bpmn:outgoing>Flow_002</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_IsAttended" name="Attended?">
+      <bpmn:incoming>Flow_002</bpmn:incoming>
+      <bpmn:outgoing>Flow_003</bpmn:outgoing>
+      <bpmn:outgoing>Flow_004</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Attended" name="Attendance recorded">
+      <bpmn:incoming>Flow_003</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Task_CreateClinicalReview" name="Create clinical review case for DNA/decline/cancel">
+      <bpmn:incoming>Flow_004</bpmn:incoming>
+      <bpmn:outgoing>Flow_005</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="Task_ClinicianDecision" name="Clinician decides rebook, review, discharge or notify GP">
+      <bpmn:incoming>Flow_005</bpmn:incoming>
+      <bpmn:outgoing>Flow_006</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_OfferRebook" name="Rebook authorised?">
+      <bpmn:incoming>Flow_006</bpmn:incoming>
+      <bpmn:outgoing>Flow_007</bpmn:outgoing>
+      <bpmn:outgoing>Flow_008</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_AuthoriseRebook" name="Authorise rebooking with clinical deadline">
+      <bpmn:incoming>Flow_007</bpmn:incoming>
+      <bpmn:outgoing>Flow_009</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_DocumentNoRebook" name="Document other clinician-approved outcome">
+      <bpmn:incoming>Flow_008</bpmn:incoming>
+      <bpmn:outgoing>Flow_010</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_ClinicalMerge" name="Clinical decision logged">
+      <bpmn:incoming>Flow_009</bpmn:incoming>
+      <bpmn:incoming>Flow_010</bpmn:incoming>
+      <bpmn:outgoing>Flow_011</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_ImplementDisposition" name="Coordinate approved patient / referrer action">
+      <bpmn:incoming>Flow_011</bpmn:incoming>
+      <bpmn:outgoing>Flow_012</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Paid" name="Paid appointment impacted?">
+      <bpmn:incoming>Flow_012</bpmn:incoming>
+      <bpmn:outgoing>Flow_013</bpmn:outgoing>
+      <bpmn:outgoing>Flow_014</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_NotifyFinance" name="Refer payment implications to Finance">
+      <bpmn:incoming>Flow_014</bpmn:incoming>
+      <bpmn:outgoing>Flow_015</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_FinanceReview" name="Finance assessment pending">
+      <bpmn:incoming>Flow_015</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="End_OutcomeDone" name="Action recorded / completed">
+      <bpmn:incoming>Flow_013</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_001" sourceRef="Start_StatusEvent" targetRef="Task_RecordStatus"/>
+    <bpmn:sequenceFlow id="Flow_002" sourceRef="Task_RecordStatus" targetRef="Gateway_IsAttended"/>
+    <bpmn:sequenceFlow id="Flow_003" sourceRef="Gateway_IsAttended" targetRef="End_Attended" name="Yes"/>
+    <bpmn:sequenceFlow id="Flow_004" sourceRef="Gateway_IsAttended" targetRef="Task_CreateClinicalReview" name="No — cancelled / declined / DNA"/>
+    <bpmn:sequenceFlow id="Flow_005" sourceRef="Task_CreateClinicalReview" targetRef="Task_ClinicianDecision"/>
+    <bpmn:sequenceFlow id="Flow_006" sourceRef="Task_ClinicianDecision" targetRef="Gateway_OfferRebook"/>
+    <bpmn:sequenceFlow id="Flow_007" sourceRef="Gateway_OfferRebook" targetRef="Task_AuthoriseRebook" name="Yes"/>
+    <bpmn:sequenceFlow id="Flow_008" sourceRef="Gateway_OfferRebook" targetRef="Task_DocumentNoRebook" name="No"/>
+    <bpmn:sequenceFlow id="Flow_009" sourceRef="Task_AuthoriseRebook" targetRef="Gateway_ClinicalMerge"/>
+    <bpmn:sequenceFlow id="Flow_010" sourceRef="Task_DocumentNoRebook" targetRef="Gateway_ClinicalMerge"/>
+    <bpmn:sequenceFlow id="Flow_011" sourceRef="Gateway_ClinicalMerge" targetRef="Task_ImplementDisposition"/>
+    <bpmn:sequenceFlow id="Flow_012" sourceRef="Task_ImplementDisposition" targetRef="Gateway_Paid"/>
+    <bpmn:sequenceFlow id="Flow_013" sourceRef="Gateway_Paid" targetRef="End_OutcomeDone" name="No"/>
+    <bpmn:sequenceFlow id="Flow_014" sourceRef="Gateway_Paid" targetRef="Task_NotifyFinance" name="Yes"/>
+    <bpmn:sequenceFlow id="Flow_015" sourceRef="Task_NotifyFinance" targetRef="End_FinanceReview"/>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_AppointmentOutcome">
+    <bpmndi:BPMNPlane id="BPMNPlane_AppointmentOutcome" bpmnElement="Collaboration_AppointmentOutcome">
+      <bpmndi:BPMNShape id="Participant_AppointmentOutcome_di" bpmnElement="Participant_AppointmentOutcome" isHorizontal="true">
+        <dc:Bounds x="65" y="45" width="2476" height="720"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_OutcomesBooking_di" bpmnElement="Lane_OutcomesBooking" isHorizontal="true">
+        <dc:Bounds x="95" y="60" width="2446" height="240"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_OutcomesAutomation_di" bpmnElement="Lane_OutcomesAutomation" isHorizontal="true">
+        <dc:Bounds x="95" y="300" width="2446" height="260"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_OutcomesClinical_di" bpmnElement="Lane_OutcomesClinical" isHorizontal="true">
+        <dc:Bounds x="95" y="560" width="2446" height="205"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Participant_OutcomesPatient_di" bpmnElement="Participant_OutcomesPatient" isHorizontal="true">
+        <dc:Bounds x="65" y="800" width="2476" height="110"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Participant_OutcomesFinance_di" bpmnElement="Participant_OutcomesFinance" isHorizontal="true">
+        <dc:Bounds x="65" y="945" width="2476" height="110"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_StatusEvent_di" bpmnElement="Start_StatusEvent">
+        <dc:Bounds x="130" y="160" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RecordStatus_di" bpmnElement="Task_RecordStatus">
+        <dc:Bounds x="245" y="144" width="175" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_IsAttended_di" bpmnElement="Gateway_IsAttended" isMarkerVisible="true">
+        <dc:Bounds x="485" y="375" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Attended_di" bpmnElement="End_Attended">
+        <dc:Bounds x="665" y="381" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CreateClinicalReview_di" bpmnElement="Task_CreateClinicalReview">
+        <dc:Bounds x="655" y="457" width="195" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ClinicianDecision_di" bpmnElement="Task_ClinicianDecision">
+        <dc:Bounds x="915" y="625" width="204" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_OfferRebook_di" bpmnElement="Gateway_OfferRebook" isMarkerVisible="true">
+        <dc:Bounds x="1185" y="630" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AuthoriseRebook_di" bpmnElement="Task_AuthoriseRebook">
+        <dc:Bounds x="1300" y="580" width="180" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_DocumentNoRebook_di" bpmnElement="Task_DocumentNoRebook">
+        <dc:Bounds x="1300" y="690" width="180" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ClinicalMerge_di" bpmnElement="Gateway_ClinicalMerge" isMarkerVisible="true">
+        <dc:Bounds x="1525" y="634" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ImplementDisposition_di" bpmnElement="Task_ImplementDisposition">
+        <dc:Bounds x="1660" y="145" width="188" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Paid_di" bpmnElement="Gateway_Paid" isMarkerVisible="true">
+        <dc:Bounds x="1900" y="375" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_NotifyFinance_di" bpmnElement="Task_NotifyFinance">
+        <dc:Bounds x="2050" y="455" width="178" height="70"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_FinanceReview_di" bpmnElement="End_FinanceReview">
+        <dc:Bounds x="2280" y="465" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_OutcomeDone_di" bpmnElement="End_OutcomeDone">
+        <dc:Bounds x="2070" y="376" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_001_di" bpmnElement="Flow_001">
+        <di:waypoint x="166" y="178.0"/>
+        <di:waypoint x="245" y="179.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_002_di" bpmnElement="Flow_002">
+        <di:waypoint x="420" y="179.0"/>
+        <di:waypoint x="452.5" y="179.0"/>
+        <di:waypoint x="452.5" y="400.0"/>
+        <di:waypoint x="485" y="400.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_003_di" bpmnElement="Flow_003">
+        <di:waypoint x="535" y="400.0"/>
+        <di:waypoint x="665" y="399.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_004_di" bpmnElement="Flow_004">
+        <di:waypoint x="535" y="400.0"/>
+        <di:waypoint x="595.0" y="400.0"/>
+        <di:waypoint x="595.0" y="492.0"/>
+        <di:waypoint x="655" y="492.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_005_di" bpmnElement="Flow_005">
+        <di:waypoint x="850" y="492.0"/>
+        <di:waypoint x="882.5" y="492.0"/>
+        <di:waypoint x="882.5" y="660.0"/>
+        <di:waypoint x="915" y="660.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_006_di" bpmnElement="Flow_006">
+        <di:waypoint x="1119" y="660.0"/>
+        <di:waypoint x="1152.0" y="660.0"/>
+        <di:waypoint x="1152.0" y="655.0"/>
+        <di:waypoint x="1185" y="655.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_007_di" bpmnElement="Flow_007">
+        <di:waypoint x="1235" y="655.0"/>
+        <di:waypoint x="1267.5" y="655.0"/>
+        <di:waypoint x="1267.5" y="615.0"/>
+        <di:waypoint x="1300" y="615.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_008_di" bpmnElement="Flow_008">
+        <di:waypoint x="1235" y="655.0"/>
+        <di:waypoint x="1267.5" y="655.0"/>
+        <di:waypoint x="1267.5" y="725.0"/>
+        <di:waypoint x="1300" y="725.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_009_di" bpmnElement="Flow_009">
+        <di:waypoint x="1480" y="615.0"/>
+        <di:waypoint x="1502.5" y="615.0"/>
+        <di:waypoint x="1502.5" y="659.0"/>
+        <di:waypoint x="1525" y="659.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_010_di" bpmnElement="Flow_010">
+        <di:waypoint x="1480" y="725.0"/>
+        <di:waypoint x="1502.5" y="725.0"/>
+        <di:waypoint x="1502.5" y="659.0"/>
+        <di:waypoint x="1525" y="659.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_011_di" bpmnElement="Flow_011">
+        <di:waypoint x="1575" y="659.0"/>
+        <di:waypoint x="1617.5" y="659.0"/>
+        <di:waypoint x="1617.5" y="180.0"/>
+        <di:waypoint x="1660" y="180.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_012_di" bpmnElement="Flow_012">
+        <di:waypoint x="1848" y="180.0"/>
+        <di:waypoint x="1874.0" y="180.0"/>
+        <di:waypoint x="1874.0" y="400.0"/>
+        <di:waypoint x="1900" y="400.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_013_di" bpmnElement="Flow_013">
+        <di:waypoint x="1950" y="400.0"/>
+        <di:waypoint x="2010.0" y="400.0"/>
+        <di:waypoint x="2010.0" y="394.0"/>
+        <di:waypoint x="2070" y="394.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_014_di" bpmnElement="Flow_014">
+        <di:waypoint x="1950" y="400.0"/>
+        <di:waypoint x="2000.0" y="400.0"/>
+        <di:waypoint x="2000.0" y="490.0"/>
+        <di:waypoint x="2050" y="490.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_015_di" bpmnElement="Flow_015">
+        <di:waypoint x="2228" y="490.0"/>
+        <di:waypoint x="2254.0" y="490.0"/>
+        <di:waypoint x="2254.0" y="483.0"/>
+        <di:waypoint x="2280" y="483.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_01_di" bpmnElement="Message_01">
+        <di:waypoint x="332.5" y="800"/>
+        <di:waypoint x="332.5" y="214"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Message_02_di" bpmnElement="Message_02">
+        <di:waypoint x="2139.0" y="525"/>
+        <di:waypoint x="2139.0" y="945"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
