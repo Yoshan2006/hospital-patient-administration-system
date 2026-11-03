@@ -50,6 +50,10 @@ To make the system work properly, HPAS separates responsibilities into four main
 
 ⚬ External Services: These are outside systems the hospital connects to, such as the external scheduling service, external letter/mailing service, and the external Payment Service Provider (PSP). 
 
+⚬ Call Handling Team: They answer patient phone calls, book the first appointments, search for patient details, and pass medical questions to the nurses.
+
+⚬ Treatment Booking Team: They schedule complex treatments (like chemotherapy) and make sure clinic rooms and equipment are available.
+
  
 
  
@@ -62,149 +66,160 @@ Functional Requirements define the specific behaviors, tasks, and processes the 
 
  
 
-Module 1: Referral Management 
+Module 1: Referral Management
 
+FR 1.1 - Receive Referrals
+
+Description: The system must safely receive and save patient referrals and attached documents from GPs.
+
+Expected Behavior: The system automatically creates a unique 'Referral ID', secures the documents, and puts the referral in the 'New Referrals' list.
+
+Inputs: Patient details, GP details, PDF/Word documents.
+
+Outputs: A new Referral ID and a 'Pending Review' status.
+
+FR 1.2 - Document Checking
+
+Description: Medical Secretaries need to check if the referral has all the necessary documents.
+
+Expected Behavior: The user ticks a checklist on the screen. If documents are missing, the system automatically sends a request back to the GP.
+
+Inputs: Secretary clicking the checklist.
+
+Outputs: The status changes to 'Incomplete' or 'Ready for Clinical Review'.
+
+FR 1.3 - System Block (Clinical Decisions)
+
+Description: The system must stop Medical Secretaries from rejecting referrals or making medical decisions.
+
+Expected Behavior: The buttons for 'Reject' or 'Assess' are completely hidden from users who have an 'Admin' role.
+
+Exception Handling: If someone tries to force this using an API, the system will return a '403 Forbidden' error.
+
+FR 1.4 - Consultant Review & FR 1.5 - Decision Logging
+
+Description: Consultants must review the ready referrals, make a decision, and the system must save this decision permanently.
+
+Expected Behavior: The Consultant chooses 'Accept', 'Reject', or 'Redirect'. The system forces them to type a 'Reason' before they can click save.
+
+Inputs: Their decision (Accept/Reject), the typed reason, and the Consultant's User ID.
+
+Outputs: A permanent log entry and the status changes to 'Accepted' or 'Rejected'.
+
+
+
+Module 2: Appointments & Scheduling
+
+
+FR 2.1 - Authorized Bookings Only & FR 2.2 - External Integration
+
+Description: Call Handlers can only book appointments for referrals that a Consultant has accepted. They will use the hospital's external calendar system for this.
+
+Expected Behavior: The system checks the external calendar for free times. If the patient's referral is not 'Accepted', the search button will not work.
+
+Inputs: The preferred dates and the type of clinic.
+
+Outputs: A list of free times and a Booking Confirmation ID.
+
+FR 2.3 - Patient Notifications & FR 2.4 - Anti-Silent Booking
+
+Description: The system automatically manages patient messages based on appointment dates and stops staff from picking dates the doctor didn't allow.
+
+Expected Behavior: If the appointment is more than 14 days away, the system sends data to the external mailing service to post a letter. If it's less than 14 days, it tells the admin staff on their dashboard to call the patient. If the calendar has no free slots in the doctor's requested time, the system stops the booking and warns the Pathway Team.
+
+Outputs: Data sent to the mailing service, or an alert on the screen.
+
+FR 2.5 - Absence Management (DNA)
+
+Description: The system records when patients cancel or don't show up.
+
+Expected Behavior: When a Call Handler clicks 'DNA' (Did Not Attend), the system automatically sends the patient's file back to the Consultant to decide what to do next.
+
+
+Module 3: Treatment Management
+
+
+FR 3.1 - Treatment Requests & FR 3.2 - System Block
+
+Description: Consultants create the treatment plans. Admins cannot process any plan that a doctor hasn't approved.
+
+Expected Behavior: The Consultant enters the number of treatment cycles. The system creates a 'Treatment ID' showing 'Awaiting Booking'. Admin users are blocked from changing any medical details.
+
+FR 3.3 - External Service Outages
+
+Description: Stops data from getting lost if the outside lab or booking systems go down.
+
+Expected Behavior: If the outside system doesn't respond (503 error), our system changes the status to 'Pending External Sync' and tries again automatically every 15 minutes.
+
+FR 3.4 - Treatment Modifications
+
+Description: If a doctor changes a treatment that affects the price, the system must tell the Finance team.
+
+Expected Behavior: If a Consultant adds another treatment cycle, the system automatically sends a message (webhook) to the Finance Module to update the bill.
+
+Module 4: Finance & Payment
+
+
+FR 4.1 - Funding Source & FR 4.2 - Secure Payment Gateway
+
+Description: The system connects to an outside Payment Service Provider (PSP) to take patient payments securely, following standard security rules.
+
+Expected Behavior: The system sends the user to the PSP's secure payment page. Our HPAS system only gets back a secure 'Token' and a 'Success/Fail' message. It NEVER saves the actual credit card numbers.
+
+Inputs: The Treatment ID and the amount to pay.
+
+Outputs: A secure payment token and the payment status.
+
+FR 4.3 - System Block & FR 4.4 - Clinical Overrides (Emergencies)
+
+Description: The system stops treatments from being booked until they are paid for, unless it is a medical emergency.
+
+Expected Behavior: Normally, you can't book if the status is not 'Paid'. But if a Consultant clicks 'Clinical Override', the system ignores the payment block, books the appointment, and sends a 'Debt Recovery' warning to the Finance team.
+
+Inputs: The Consultant's override approval (they have to log in again to confirm).
+
+FR 4.5 - Communication Failure Recovery
+
+Description: This handles situations where money is taken from the patient's card, but the internet drops before the system gets the receipt.
+
+Expected Behavior: The system asks the PSP if the payment worked. If it doesn't know, it marks the transaction as MARKED_FOR_INVESTIGATION so the Finance Team can check it manually. This stops the patient from being charged twice.
+
+FR 4.6 - Refunds
+
+Description: Only allowed Finance staff can use the system to process refunds for cancelled treatments.
+
+
+Module 5: Inquiry & Call Handling
+
+
+FR 5.1 - Inquiry Logging & FR 5.2 - Call Routing
+
+Description: Every phone call is recorded, and questions are sent to the right team.
+
+Expected Behavior: The Call Handler types in the call details. If the patient asks a medical question, the handler clicks 'Route to Clinical', and a warning pops up on the Nurse Team's screen.
+
+FR 5.3 - High Priority Flags
+
+Expected Behavior: There is an 'Urgent' checkbox. If ticked, the message turns red on the dashboard so it gets looked at immediately.
+
+
+Module 6: Clinic Letters & Monitoring
+
+
+
+FR 6.1 - Drafting & FR 6.2 - Editing Restrictions
+
+Description: Consultants write the letters; Admins can only fix spelling or layout mistakes.
+
+Expected Behavior: In the text editor, the 'Clinical Findings' box is locked so Admins can't type in it, but they can edit the patient's address and name.
+
+FR 6.3 - Date Tracking, FR 6.4 - Reminders, & FR 6.5 - Escalation
+
+Description: The system tracks dates and automatically warns people if letters are delayed.
+
+Expected Behavior: The system runs a check every day. If a letter was drafted more than 7 days ago but not approved, it sends an alert to the Consultant. If it takes more than 30 days, it warns the Manager. If it hits 90 days, it warns Senior Management.
  
 
-⚬ FR 1.1 - Receive Referrals: The system must be able to receive and securely store incoming patient referrals (and supporting documents) from external General Practitioners (GPs) or hospitals. 
-
- 
-
-⚬ FR 1.2 - Document Checking: The system must allow Medical Secretaries to check referrals for missing documents and request them from the referring organizations. 
-
- 
-
-⚬ FR 1.3 - System Block (Clinical Decisions): The system must strictly block Medical Secretaries from rejecting referrals or making any clinical assessments. 
-
- 
-
-⚬ FR 1.4 - Consultant Review: Once reviewed, the system must provide the Consultant with options to: 'Accept', 'Reject', 'Request More Info', or 'Redirect' the referral to another service. 
-
- 
-
-⚬ FR 1.5 - Decision Logging: The system must mandatorily record the Consultant's final decision, the exact reason for it, and the identity of the Consultant. 
-
- 
-
-Module 2: Appointments & Scheduling 
-
- 
-
-⚬ FR 2.1 - Authorized Bookings Only: The system must only allow a 'New Patient Appointment' to be booked if the patient's referral has been officially accepted by a Consultant. 
-
- 
-
-⚬ FR 2.2 - External Scheduling Integration: The system must connect with the hospital's External Scheduling API to book appointments based on clinical priority and requested timeframes. 
-
- 
-
-⚬ FR 2.3 - Patient Notifications: If an appointment is more than 2 weeks away, the system generates a letter. If it is within 2 weeks, the system must prompt admin staff to call the patient. All call attempts and outcomes must be logged. 
-
- 
-
-⚬ FR 2.4 - Anti-Silent Booking: If the external service cannot find an appointment within the doctor's requested timeframe, the system must block staff from silently booking a later date. Instead, it must automatically alert the Pathway Team. 
-
- 
-
-⚬ FR 2.5 - Absence Management (DNA): If a patient cancels or Does Not Attend (DNA), the system must log it and route the case to the clinical team to decide the next steps. 
-
- 
-
- 
-
- 
-
- 
-
- 
-
-Module 3: Treatment Management 
-
- 
-
-⚬ FR 3.1 - Treatment Requests: Consultants must be able to create a 'Treatment Booking Request' in the system, detailing the start date, number of cycles, and required resources. 
-
- 
-
-⚬ FR 3.2 - System Block (Unauthorized Treatments): The system must block administrative staff from processing any treatment request that lacks clinical approval. 
-
- 
-
-⚬ FR 3.3 - External Service Outages: If external labs or treatment services are temporarily down, the system must keep the request as 'Pending', notify the team, and prevent the creation of duplicate appointments. 
-
- 
-
-⚬ FR 3.4 - Treatment Modifications: Any changes to a treatment plan must be approved by a doctor in the system. If the change impacts billing, the system must automatically notify the Finance Team. 
-
- 
-
-Module 4: Finance & Payment 
-
- 
-
-⚬ FR 4.1 - Funding Source: The Finance Team must be able to record who is funding the treatment (e.g., hospital, insurance, or patient) and input authorization reference numbers. 
-
- 
-
-⚬ FR 4.2 - Secure Payment Gateway: The system must securely connect to an external Payment Gateway to process patient payments. The system must NEVER store full credit card details. 
-
- 
-
-⚬ FR 4.3 - System Block (Pending Payments): The system must block the confirmation of standard treatment appointments until the payment is successfully completed. 
-
- 
-
-⚬ FR 4.4 - Clinical Overrides (Emergencies): In life-threatening emergencies, the system must allow clinical staff to bypass payment blocks to treat the patient immediately. The system will automatically notify Finance to resolve the payment later. 
-
- 
-
-⚬ FR 4.5 - Communication Failure Recovery: If a payment is taken but the receipt is lost due to a network error, the system must mark it as "Flagged for Investigation" and prevent the patient from being charged a second time. 
-
- 
-
-⚬ FR 4.6 - Refunds: Refund requests for cancelled treatments can only be submitted through the system by authorized Finance officers. 
-
- 
-
-Module 5: Inquiry & Call Handling 
-
- 
-
-⚬ FR 5.1 - Inquiry Logging: Every incoming inquiry must be logged with the time received, handler's name, routed team, response given, and 'Resolved' status. 
-
- 
-
-⚬ FR 5.2 - Call Routing: Call handlers must be blocked from giving medical advice. The system must route clinical questions to the Nurse Team and financial questions to the Finance Team. 
-
- 
-
-⚬ FR 5.3 - High Priority Flags: The system must allow users to flag urgent clinical inquiries for immediate attention. 
-
- 
-
-Module 6: Clinic Letters & Monitoring 
-
- 
-
-⚬ FR 6.1 - Drafting Letters: Consultants must be able to draft, select recipients, and approve Clinic Letters directly in the system after a consultation. 
-
- 
-
-⚬ FR 6.2 - Editing Restrictions: Administrative staff can only access the letter to fix formatting or typing errors; the system must block them from changing the clinical content. 
-
- 
-
-⚬ FR 6.3 - Date Tracking: The system must track the appointment date, drafted date, approved date, and sent date for every letter. 
-
- 
-
-⚬ FR 6.4 - Automated Reminders: If a letter is not approved within 7 days, the system must send automated reminders to the Consultant. 
-
- 
-
-⚬ FR 6.5 - Escalation Matrix: If a letter is delayed by 1 month, the system automatically notifies the Manager. At 3 months, it notifies Senior Management. Reminders must stop once the letter is approved. 
-
- 
 
 2. Non-Functional Requirements (NFR) 
 
